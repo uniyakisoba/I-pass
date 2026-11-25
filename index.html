@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>iパス毎日10問</title>
+  <meta name="description" content="ITパスポート試験対策：毎日10問・受験日カウントダウン・分野別到達率と予想スコア・苦手問題の復習">
+  <meta name="theme-color" content="#4f46e5">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="iパス10問">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <main id="view" aria-live="polite"></main>
+
+  <nav class="tabbar" id="tabbar" aria-label="メインメニュー">
+    <a href="#home" data-tab="home"><span class="ti" aria-hidden="true">🏠</span>ホーム</a>
+    <a href="#review" data-tab="review"><span class="ti" aria-hidden="true">📝</span>復習</a>
+    <a href="#stats" data-tab="stats"><span class="ti" aria-hidden="true">📊</span>分析</a>
+    <a href="#settings" data-tab="settings"><span class="ti" aria-hidden="true">⚙️</span>設定</a>
+  </nav>
+
+  <div id="toast" class="toast" role="status"></div>
+
+  <script src="js/questions.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>
