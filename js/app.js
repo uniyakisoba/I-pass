@@ -347,6 +347,85 @@
   function pickWeak() {
     return shuffle(allQ().filter(q => isWeak(S.qs[q.id])).map(q => q.id)).slice(0, DAILY_N);
   }
+  // ---------- 分野別演習 ----------
+  const PRACTICE_DEFAULT = { src: 'all', n: 10, order: 'auto' };
+  function practiceOpt() { return Object.assign({}, PRACTICE_DEFAULT, S.settings.practice || {}); }
+  // 出題する問題の種類で絞り込む（すべて／過去問／オリジナル／年度別）
+  function practicePool() {
+    const src = practiceOpt().src;
+    if (src === 'past') return PAST;
+    if (src === 'orig') return window.IPASS_QUESTIONS;
+    if (/^R\d\d$/.test(src)) return PAST.filter(q => q.id.startsWith(src + '-'));
+    return everyQ();
+  }
+  function pastYears() {
+    return [...new Set(PAST.map(q => q.id.slice(0, 3)))].sort();
+  }
+  const yearLabel = y => `令和${Number(y.slice(1))}年度`;
+  function pickPractice(filter) {
+    const o = practiceOpt();
+    const qs = practicePool().filter(filter);
+    const n = o.n === 'all' ? qs.length : Math.min(Number(o.n), qs.length);
+    const seen = q => S.qs[q.id] && S.qs[q.id].n > 0;
+    const weak = q => isWeak(S.qs[q.id]);
+    let list;
+    if (o.order === 'random') list = shuffle(qs.slice());
+    else if (o.order === 'unseen') list = [...shuffle(qs.filter(q => !seen(q))), ...shuffle(qs.filter(seen))];
+    else if (o.order === 'weak') list = [...shuffle(qs.filter(weak)), ...shuffle(qs.filter(q => !seen(q))), ...shuffle(qs.filter(q => seen(q) && !weak(q)))];
+    else {
+      const w = q => !seen(q) ? 3 : weak(q) ? 2 : 1;
+      return weightedSample(qs, w, n, Math.random).map(q => q.id);
+    }
+    return list.slice(0, n).map(q => q.id);
+  }
+
+  function viewPractice() {
+    const o = practiceOpt();
+    const pool = practicePool();
+    const stats = computeStats();
+    const count = f => pool.filter(f).length;
+    const srcOpts = [['all', `すべて（${everyQ().length}問）`], ['past', `IPA過去問だけ（${PAST.length}問）`],
+      ['orig', `オリジナル類似問題だけ（${window.IPASS_QUESTIONS.length}問）`],
+      ...pastYears().map(y => [y, `${yearLabel(y)} 過去問（${PAST.filter(q => q.id.startsWith(y + '-')).length}問）`])];
+    const seg = (key, items) => `<div class="seg">${items.map(([v, label]) =>
+      `<button class="${String(o[key]) === String(v) ? 'on' : ''}" data-act="popt" data-key="${key}" data-val="${v}">${label}</button>`).join('')}</div>`;
+    const nLabel = n => n === 'all' ? '全部' : `${n}問`;
+    $view.innerHTML = `
+      <h1>分野別演習</h1>
+      <section class="card">
+        <h2>出題の条件</h2>
+        <label class="field"><span>出題する問題</span>
+          <select id="psrc">${srcOpts.map(([v, l]) => `<option value="${v}" ${o.src === v ? 'selected' : ''}>${l}</option>`).join('')}</select></label>
+        <div class="sub" style="margin-bottom:4px">問題数</div>
+        ${seg('n', [[10, '10問'], [20, '20問'], ['all', '全部']])}
+        <div class="sub" style="margin-bottom:4px">優先して出す問題</div>
+        ${seg('order', [['auto', 'おまかせ'], ['unseen', '未回答'], ['weak', '苦手'], ['random', 'ランダム']])}
+        <p class="note">おまかせ：未回答と苦手を多めに混ぜて出題します。</p>
+      </section>
+      ${FIELDS.map(f => {
+        const fo = stats.byField[f];
+        const fn = count(q => q.f === f);
+        return `<section class="card">
+          <div class="row between">
+            <div><h2 style="margin:0">${fieldDot(f)}${CATS[f].name}</h2>
+              <div class="sub">到達率 ${Math.round(fo.reach * 100)}% ・ ${fn}問</div></div>
+            <button class="btn small primary" data-act="pfield" data-f="${f}" ${fn ? '' : 'disabled'}>${nLabel(o.n)}解く</button>
+          </div>
+          <ul class="cat-list" style="margin-top:6px">${CATS[f].cats.map(c => {
+            const co = stats.byCat[c] || { reach: 0 };
+            const cn = count(q => q.c === c);
+            return `<li><div style="flex:1;min-width:0"><div>${esc(c)}</div>
+                <div class="bar" style="margin:4px 0 2px" role="img" aria-label="到達率 ${Math.round(co.reach * 100)}%"><i style="width:${co.reach * 100}%;background:var(--field-${f})"></i></div>
+                <div class="sub">到達率 ${Math.round(co.reach * 100)}% ・ ${cn}問</div></div>
+              <button class="btn small" data-act="pcat" data-cat="${esc(c)}" ${cn ? '' : 'disabled'}>解く</button></li>`;
+          }).join('')}</ul>
+        </section>`;
+      }).join('')}`;
+    document.getElementById('psrc').addEventListener('change', e => {
+      S.settings.practice = Object.assign(practiceOpt(), { src: e.target.value }); save(); viewPractice();
+    });
+  }
+
   function pickCat(c) {
     const qs = allQ().filter(q => q.c === c);
     const w = q => { const s = S.qs[q.id]; return !s || !s.n ? 3 : isWeak(s) ? 2 : 1; };
@@ -519,12 +598,8 @@
       ${list.length ? list.map(q => qItem(q)).join('') : `<div class="empty">${empty}</div>`}
       <section class="card" style="margin-top:18px">
         <h2>分野別に演習</h2>
-        <p class="sub">苦手な分野を集中的に10問。到達率が低い分野から取り組むのがおすすめです。</p>
-        ${FIELDS.map(f => `<h3>${fieldDot(f)}${CATS[f].name}</h3><ul class="cat-list">${CATS[f].cats.map(c => {
-          const o = stats.byCat[c] || { reach: 0, total: 0 };
-          return `<li><div><div>${esc(c)}</div><div class="sub">到達率 ${Math.round(o.reach * 100)}% ・ ${o.total}問</div></div>
-            <button class="btn small" data-act="cat" data-cat="${esc(c)}">10問</button></li>`;
-        }).join('')}</ul>`).join('')}
+        <p class="sub">分野・問題数・過去問の年度を選んで解けます。</p>
+        <a class="btn block" href="#practice">「演習」タブを開く</a>
       </section>`;
   }
 
@@ -760,7 +835,7 @@
     const route = (location.hash || '#home').slice(1);
     document.body.classList.toggle('quiz-mode', route === 'quiz');
     document.querySelectorAll('#tabbar a').forEach(a => a.classList.toggle('active', a.dataset.tab === route));
-    ({ home: viewHome, quiz: viewQuiz, review: viewReview, stats: viewStats, settings: viewSettings }[route] || viewHome)();
+    ({ home: viewHome, quiz: viewQuiz, review: viewReview, practice: viewPractice, stats: viewStats, settings: viewSettings }[route] || viewHome)();
     if (route !== 'quiz') window.scrollTo(0, 0);
   }
   window.addEventListener('hashchange', () => {
@@ -782,6 +857,13 @@
       case 'extra': startSession('extra', pickExtra(), '追加の10問'); break;
       case 'weak': startSession('weak', pickWeak(), '苦手問題'); break;
       case 'cat': startSession('cat', pickCat(el.dataset.cat), el.dataset.cat); break;
+      case 'pcat': startSession('cat', pickPractice(q => q.c === el.dataset.cat), el.dataset.cat); break;
+      case 'pfield': startSession('cat', pickPractice(q => q.f === el.dataset.f), CATS[el.dataset.f].name); break;
+      case 'popt': {
+        const v = el.dataset.val;
+        S.settings.practice = Object.assign(practiceOpt(), { [el.dataset.key]: /^\d+$/.test(v) ? Number(v) : v });
+        save(); viewPractice(); break;
+      }
       case 'retry': {
         const ids = session.results.filter(r => !r.ok).map(r => r.id);
         startSession('retry', shuffle(ids), '解き直し'); break;
