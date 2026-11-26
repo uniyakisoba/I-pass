@@ -20,7 +20,7 @@
 
   // ---------- 保存データ ----------
   const defaultState = () => ({
-    settings: { examDate: '', reminderTime: '20:00' },
+    settings: { examDate: '', reminderTime: '20:00', pool: 'all' },
     qs: {},      // 問題ごとの学習状況 { [id]: {n, ok, streak, box, due, wrong, last, lastOk, flag} }
     days: {},    // 日ごとの記録 { 'YYYY-MM-DD': {n, ok, done} }
     daily: null, // 今日の10問 { date, ids, results:[{id, ok, choice}] }
@@ -45,8 +45,16 @@
 
   // ---------- 問題 ----------
   let QMAP = new Map();
-  function allQ() { return [...window.IPASS_QUESTIONS, ...S.custom]; }
-  function rebuildMap() { QMAP = new Map(allQ().map(q => [q.id, q])); }
+  const PAST = window.IPASS_PAST || [];
+  function everyQ() { return [...window.IPASS_QUESTIONS, ...PAST, ...S.custom]; }
+  // 出題範囲（設定）に応じた問題の一覧。出題・集計はこの範囲で行う
+  function allQ() {
+    const pool = S.settings.pool || 'all';
+    if (pool === 'past') return [...PAST, ...S.custom];
+    if (pool === 'orig') return [...window.IPASS_QUESTIONS, ...S.custom];
+    return everyQ();
+  }
+  function rebuildMap() { QMAP = new Map(everyQ().map(q => [q.id, q])); }
   rebuildMap();
   const getQ = id => QMAP.get(id);
 
@@ -103,6 +111,7 @@
   function choiceOrder(q) {
     const idx = q.ch.map((_, i) => i);
     const numeric = q.ch.every(c => /^[0-9０-９.,，／/]+/.test(String(c).trim()));
+    // 過去問は本番どおりの順番（解説が「アは…」と記号で説明しているため）
     return q.keep || numeric ? idx : shuffle(idx);
   }
 
@@ -396,6 +405,7 @@
         <span class="chip">${esc(q.src || 'オリジナル類似問題')}</span>
       </div>
       <div class="qtext">${esc(q.q)}</div>
+      ${figure(q)}
       <div class="choices">${choicesHtml}</div>
       ${after}`;
     if (ans != null) {
@@ -450,6 +460,12 @@
     window.scrollTo(0, 0);
   }
 
+  // 図表の画像（タップで別タブに拡大表示）
+  function figure(q) {
+    if (!q.img) return '';
+    return `<a class="qimg" href="${esc(q.img)}" target="_blank" rel="noopener"><img src="${esc(q.img)}" alt="問題の図表" loading="lazy" style="${q.iw ? `width:min(100%, ${Number(q.iw)}px)` : ''}"><span>タップで拡大</span></a>`;
+  }
+
   // 問題の解説カード（復習・結果画面で共通）
   function qItem(q, o = {}) {
     if (!q) return '';
@@ -463,6 +479,7 @@
         <div class="snip">${esc(q.q.split('\n')[0].slice(0, 70))}${q.q.length > 70 ? '…' : ''}</div></div></div></summary>
       <div class="body">
         <div class="qtext" style="font-size:.92rem">${esc(q.q)}</div>
+        ${figure(q)}
         <ol>${q.ch.map((c, i) => `<li class="${i === q.a ? 'ans' : ''}">${KANA[i]}　${esc(c)}${i === q.a ? '　✓ 正解' : ''}${o.choice === i && i !== q.a ? '　← あなたの解答' : ''}</li>`).join('')}</ol>
         <div class="explain"><div class="t">解説</div>${esc(q.ex)}</div>
         <div class="sub" style="margin-top:8px">回答${s.n}回 ／ 正解${s.ok}回 ${s.due && isWeak(s) ? `／ 次回出題予定 ${s.due}` : ''}</div>
@@ -576,6 +593,17 @@
       </section>
 
       <section class="card">
+        <h2>出題範囲</h2>
+        <label class="field"><span>毎日の10問・演習に使う問題</span>
+          <select id="pool">
+            <option value="all" ${S.settings.pool === 'all' ? 'selected' : ''}>すべて（${everyQ().length}問）</option>
+            <option value="past" ${S.settings.pool === 'past' ? 'selected' : ''}>IPA公開の過去問だけ（${PAST.length}問）</option>
+            <option value="orig" ${S.settings.pool === 'orig' ? 'selected' : ''}>オリジナル類似問題だけ（${window.IPASS_QUESTIONS.length}問）</option>
+          </select></label>
+        <p class="note">変更は明日の10問から反映されます（「もう10問」や分野別演習にはすぐ反映）。予想スコアと到達率も、この範囲の問題で計算します。</p>
+      </section>
+
+      <section class="card">
         <h2>毎日のリマインド</h2>
         <label class="field"><span>通知してほしい時刻</span><input type="time" id="reminderTime" value="${esc(S.settings.reminderTime)}"></label>
         <p class="note">Webアプリは閉じている間に自分で通知を出せないため、スマホの<b>カレンダーの通知機能</b>を使って毎日リマインドします。下のボタンで「毎日この時刻に繰り返す予定」を登録してください（受験日まで）。</p>
@@ -603,7 +631,7 @@
 
       <section class="card">
         <h2>問題を追加する</h2>
-        <p class="note">IPA公開の過去問題などを、決められた形式（JSON）で追加できます。形式はREADMEを参照してください。現在の追加問題：<b>${S.custom.length}問</b>（標準問題 ${window.IPASS_QUESTIONS.length}問）</p>
+        <p class="note">IPA公開の過去問題などを、決められた形式（JSON）で追加できます。形式はREADMEを参照してください。現在の追加問題：<b>${S.custom.length}問</b>（収録済み：過去問 ${PAST.length}問・オリジナル ${window.IPASS_QUESTIONS.length}問）</p>
         <div class="btn-row">
           <label class="btn file-btn">JSONファイルを追加<input type="file" accept="application/json,.json" id="addQFile"></label>
           ${S.custom.length ? '<button class="btn danger" data-act="clear-custom">追加問題を削除</button>' : ''}
@@ -618,6 +646,7 @@
       <p class="sub" style="text-align:center">iパス毎日10問 ・ <a href="${esc(appUrl)}">${esc(appUrl.replace(/^https?:\/\//, ''))}</a></p>`;
 
     document.getElementById('examDate').addEventListener('change', e => { S.settings.examDate = e.target.value; save(); toast('受験日を保存しました'); });
+    document.getElementById('pool').addEventListener('change', e => { S.settings.pool = e.target.value; save(); toast('出題範囲を保存しました'); render(); });
     document.getElementById('reminderTime').addEventListener('change', e => { S.settings.reminderTime = e.target.value || '20:00'; save(); toast('時刻を保存しました'); });
     document.getElementById('importFile').addEventListener('change', importBackup);
     document.getElementById('addQFile').addEventListener('change', importQuestions);
@@ -706,7 +735,7 @@
     readJsonFile(e, data => {
       const arr = Array.isArray(data) ? data : data && data.questions;
       if (!Array.isArray(arr)) { toast('問題の配列が見つかりません'); return; }
-      const base = new Set(window.IPASS_QUESTIONS.map(q => q.id));
+      const base = new Set([...window.IPASS_QUESTIONS, ...PAST].map(q => q.id));
       const ok = [], ng = [];
       arr.forEach(q => (validQ(q) && !base.has(q.id) ? ok : ng).push(q));
       const map = new Map(S.custom.map(q => [q.id, q]));
