@@ -3,7 +3,7 @@
  * 電波がない場所でも起動できるようにする仕組み。
  * ファイルを更新したら CACHE の番号を上げると、古いキャッシュが入れ替わる。
  */
-const CACHE = 'ipass-v4';
+const CACHE = 'ipass-v5';
 const FILES = [
   './', './index.html', './css/style.css', './js/app.js', './js/questions.js', './js/past_questions.js',
   './manifest.webmanifest', './icons/icon.svg', './icons/icon-192.png', './icons/icon-512.png', './icons/apple-touch-icon.png',

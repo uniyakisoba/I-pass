@@ -297,7 +297,15 @@ label.field > span { display: block; font-size: .85rem; color: var(--text-sub); 
 input[type="date"], input[type="time"], textarea, select {
   width: 100%; min-height: 48px; padding: 10px 12px; font: inherit; color: var(--text);
   background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+  display: block; max-width: 100%; min-width: 0;
 }
+/* iPhoneのSafariは日付・時刻欄に独自の最小幅を付けて枠からはみ出すため、標準の見た目を解除する */
+input[type="date"], input[type="time"] {
+  -webkit-appearance: none; appearance: none;
+  text-align: left; line-height: 1.4;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value { text-align: left; min-height: 1.4em; }
 textarea { min-height: 120px; font-size: .85rem; font-family: ui-monospace, Menlo, monospace; }
 .file-btn { position: relative; overflow: hidden; }
 .file-btn input { position: absolute; inset: 0; opacity: 0; cursor: pointer; }
