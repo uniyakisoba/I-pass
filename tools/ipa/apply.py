@@ -17,6 +17,23 @@ YEARS = {  # 年度表示, 分野の区切り（ストラテジ最終問, マネ
 KANA = 'アイウエ'
 SUSPECT = re.compile(r'ーー|[|=^~_]|二=|ee|[A-Z]{2}0\b|[ァ-ヶ]{2}エエ|。。')
 
+JA = r'[ぁ-んァ-ヶ一-龥ー々]'
+def tidy(t):
+    """英字と日本語の間の余分な空白を詰め、設問の項目を改行して読みやすくする"""
+    t = re.sub(r' (?=(?:To|Cc|Bcc)：)', '\n', t)
+    t = re.sub(r'(?<=\S) (?=\(\d\) )', '\n', t)
+    t = re.sub(rf'(?<=[A-Za-z0-9)]{{2}}) (?={JA})', '', t)
+    t = re.sub(rf'(?<=[～~][a-z]) (?={JA})', '', t)
+    t = re.sub(rf'(?<={JA}|[，、）」”]) (?=[A-Za-z0-9(][A-Za-z0-9/()\-.]*[^\sA-Za-z0-9])', '', t)
+    t = re.sub(rf'(?<={JA})"\s?', '”', t)          # 閉じ引用符
+    t = re.sub(rf'"(?={JA}|[A-Za-z])', '“', t)       # 開き引用符
+    t = re.sub(r'(?<=[。？）」]) (?=(?:[a-e]|\(\d\)) )', '\n', t)   # 項目 a / (1) の前で改行
+    t = re.sub(r' (?=〔)', '\n', t)
+    t = re.sub(r'(?<=[。？]) ?(?=\(\d\))', '\n', t)
+    t = re.sub(r'(?<=\S) (?=「)', '\n', t)
+    t = re.sub(r'(?<=どれか。) (?=(?:[a-e]|\(\d\)) )', '\n', t)
+    return t
+
 def parse_fix(path):
     items, cur = {}, None
     for raw in open(path, encoding='utf-8'):
@@ -51,6 +68,7 @@ for y, (label, s_end, m_end) in YEARS.items():
         for old, new in fx['r']:
             qt = qt.replace(old, new)
             ch = [c.replace(old, new) for c in ch]
+        qt, ch = tidy(qt), [tidy(c) for c in ch]
         field = 'S' if n <= s_end else 'M' if n <= m_end else 'T'
         cat = CAT[fx['c']]
         if FIELD_OF[fx['c']] != field:
